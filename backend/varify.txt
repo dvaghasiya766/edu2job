@@ -1,0 +1,47 @@
+==============================================================================
+MONGO_DB_URI=mongodb+srv://dvaghasiya766_db_user:9I17u7JxP78knIps@cluster0.6ikb06a.mongodb.net/edu2job?retryWrites=true&w=majority
+==============================================================================
+Registration:
+==============================================================================
+POST: http://localhost:8000/users/register
+
+{
+    "name": "Dev Vaghasiya",
+    "email": "dvaghasiya766@rku.ac.in",
+    "password": "Dev@123"
+}
+
+==============================================================================
+Verification:
+==============================================================================
+POST: http://localhost:8000/users/verification
+
+{
+    "degree": "Bachelor of Computer Science",
+    "yearOfPassing": "2024",
+    "skills": ["JavaScript", "React", "Node.js"],
+    "CGPA": 8.2,
+    "certifications": [
+    {
+        "title": "Full Stack Web Development",
+        "issuer": "Coursera",
+        "year": 2023
+    },
+    {
+        "title": "Cloud Fundamentals",
+        "issuer": "AWS",
+        "year": 2024
+    }
+]
+}
+
+==============================================================================
+LogIn:
+==============================================================================
+POST: http://localhost:8000/users/login
+
+{
+    "email": "dvaghasiya766@rku.ac.in",
+    "password": "Dev@123456789"
+}
+

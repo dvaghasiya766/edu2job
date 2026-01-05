@@ -1,0 +1,25 @@
+@font-face {
+  font-family: "Oswald";
+  src: url("./Assets/Fonts/Oswald-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Roboto Condensed";
+  src: url("./Assets/Fonts/RobotoCondensed-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: "Niconne";
+  src: url("./Assets/Fonts/Niconne-Regular.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+}
+
+* {
+  box-sizing: border-box;
+  transition: all ease-in-out 500ms;
+}
