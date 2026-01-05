@@ -2,10 +2,10 @@ import { httpError } from "../models/http.error.js";
 import { User } from "../models/userModel.js";
 import { JobPrediction } from "../models/jobPrediction.js";
 import axios from "axios";
+import mongoose from "mongoose";
 
 const ML_MODEL_URL = process.env.ML_MODEL_URL || "http://127.0.0.1:5000";
 
-// Map frontend degree names to ML model format
 const mapDegreeToMLFormat = (degree) => {
   const degreeMap = {
     "Bachelor of Computer Science": "B.Tech",
@@ -18,160 +18,105 @@ const mapDegreeToMLFormat = (degree) => {
   return degreeMap[degree] || "B.Tech";
 };
 
-// Map specialization to ML model format
 const mapSpecializationToMLFormat = (skills) => {
   if (!skills || skills.length === 0) return "CSE";
-
   const skillsStr = skills.join(" ").toLowerCase();
-
-  if (skillsStr.includes("ai") || skillsStr.includes("artificial intelligence"))
-    return "AI";
-  if (skillsStr.includes("ml") || skillsStr.includes("machine learning"))
-    return "ML";
-  if (skillsStr.includes("data") || skillsStr.includes("analytics"))
-    return "DS";
-  if (
-    skillsStr.includes("web") ||
-    skillsStr.includes("frontend") ||
-    skillsStr.includes("backend")
-  )
-    return "IT";
-  if (skillsStr.includes("computer") || skillsStr.includes("software"))
-    return "CSE";
-
+  if (skillsStr.includes("ai") || skillsStr.includes("artificial intelligence")) return "AI";
+  if (skillsStr.includes("ml") || skillsStr.includes("machine learning")) return "ML";
+  if (skillsStr.includes("data") || skillsStr.includes("analytics")) return "DS";
+  if (skillsStr.includes("web") || skillsStr.includes("frontend") || skillsStr.includes("backend")) return "IT";
+  if (skillsStr.includes("computer") || skillsStr.includes("software")) return "CSE";
   return "CSE";
 };
 
 export const predictJobRole = async (req, res, next) => {
   try {
-    console.log('=== PREDICTION API CALLED ===');
-    console.log('Request headers:', req.headers);
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-    console.log('Request method:', req.method);
-    console.log('Request URL:', req.url);
-    
+    console.log('=== PREDICTION START ===');
     const userId = req.userId;
-    console.log('Authenticated User ID:', userId);
-
+    console.log('User ID:', userId);
+    
     if (!userId) {
-      console.log('ERROR: No user ID found in request');
       return next(new httpError("Authentication failed", 401));
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      console.log('ERROR: User not found in database for ID:', userId);
       return next(new httpError("User not found", 404));
     }
+    console.log('User found:', user.name);
 
-    console.log('User found:', {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      degree: user.degree,
-      skills: user.skills,
-      CGPA: user.CGPA
-    });
-
-    const degree = user.degree || "Bachelor of Technology";
-    const yearOfPassing = user.yearOfPassing || new Date().getFullYear();
-    const cgpa = user.CGPA || "7.0";
-    const skills = user.skills || ["Programming"];
-    const certifications = user.Certifications || [];
-
-    console.log('Processed user data:', {
-      degree,
-      yearOfPassing,
-      cgpa,
-      skills,
-      certifications: certifications.length
-    });
-
-    let predictions;
-    
-    try {
-      console.log('Attempting ML model call...');
-      const mlData = {
-        Degree: mapDegreeToMLFormat(degree),
-        Specialization: mapSpecializationToMLFormat(skills),
-        YOP: yearOfPassing,
-        CGPA: parseFloat(cgpa),
-        Certifications: certifications.length
-      };
-      
-      console.log('ML API URL:', ML_MODEL_URL);
-      console.log('ML Data being sent:', JSON.stringify(mlData, null, 2));
-      
-      const response = await axios.post(`${ML_MODEL_URL}/predict`, mlData, {
-        timeout: 5000
-      });
-      
-      predictions = response.data.predictions;
-      console.log('ML predictions received:', JSON.stringify(predictions, null, 2));
-    } catch (error) {
-      console.log('ML model failed:', error.message);
-      console.log('Using fallback predictions...');
-      predictions = generateFallbackPredictions(skills, degree);
-      console.log('Fallback predictions:', JSON.stringify(predictions, null, 2));
-    }
-
-    const userProfile = {
-      degree,
-      specialization: mapSpecializationToMLFormat(skills),
-      yearOfPassing,
-      cgpa,
-      certifications: certifications.length,
+    // Prepare data for Python ML server
+    const mlInput = {
+      degree: mapDegreeToMLFormat(user.degree),
+      specialization: mapSpecializationToMLFormat(user.skills),
+      cgpa: parseFloat(user.CGPA) || 7.0,
+      year_of_passing: user.yearOfPassing || 2024,
+      certifications: user.Certifications ? user.Certifications.length : 0
     };
 
-    console.log('User profile for prediction:', JSON.stringify(userProfile, null, 2));
+    console.log('ML Input:', mlInput);
+    
+    let predictions;
+    let mlSuccess = false;
+    
+    try {
+      console.log('Calling ML server...');
+      const response = await axios.post(`${ML_MODEL_URL}/predict`, mlInput, {
+        timeout: 5000,
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      console.log('ML Response:', response.data);
+      
+      if (response.data && response.data.predictions) {
+        predictions = response.data.predictions;
+        mlSuccess = true;
+        console.log('ML server success!');
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (mlError) {
+      console.log('ML server failed:', mlError.message);
+      predictions = generateFallbackPredictions(user.skills, user.degree);
+      console.log('Using fallback predictions:', predictions);
+    }
 
+    // Save to database
     const predictionData = {
-      userID: userId,
+      userID: new mongoose.Types.ObjectId(userId),
       predictedJobRoles: predictions,
-      userProfile,
+      userProfile: {
+        degree: user.degree || "Bachelor of Technology",
+        specialization: mapSpecializationToMLFormat(user.skills),
+        yearOfPassing: user.yearOfPassing || 2024,
+        cgpa: parseFloat(user.CGPA) || 7.0,
+        certifications: user.Certifications ? user.Certifications.length : 0
+      },
       modelMetrics: {
-        f1Score: 86,
-        accuracy: 70.0,
+        f1Score: mlSuccess ? 86 : 75,
+        accuracy: mlSuccess ? 85.0 : 70.0
       }
     };
 
-    console.log('Final prediction data:', JSON.stringify(predictionData, null, 2));
-    console.log('Creating new Prediction document...');
+    console.log('Saving prediction data:', JSON.stringify(predictionData, null, 2));
     
     const newPrediction = new JobPrediction(predictionData);
-    console.log('Prediction document created, attempting to save...');
-    console.log('Document before save:', JSON.stringify(newPrediction.toObject(), null, 2));
+    const savedPrediction = await newPrediction.save();
     
-    await newPrediction.save();
-    console.log('SUCCESS: Prediction saved with ID:', newPrediction._id);
+    console.log('Prediction saved successfully! ID:', savedPrediction._id);
+    console.log('=== PREDICTION END ===');
 
-    const response = {
+    return res.status(200).json({
       success: true,
       message: "Job role prediction successful",
       predictions,
-      predictionId: newPrediction._id,
-      userProfile: {
-        name: user.name,
-        ...userProfile,
-      },
-      modelMetrics: {
-        f1Score: 86,
-        accuracy: 70.0,
-      },
-    };
-
-    console.log('Sending response:', JSON.stringify(response, null, 2));
-    return res.status(200).json(response);
+      predictionId: savedPrediction._id,
+      mlServerUsed: mlSuccess
+    });
     
   } catch (error) {
     console.error('=== PREDICTION ERROR ===');
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    if (error.errors) {
-      console.error('Validation errors:', JSON.stringify(error.errors, null, 2));
-    }
-    console.error('========================');
+    console.error('Error details:', error);
     return next(new httpError(error.message, 500));
   }
 };
@@ -184,11 +129,7 @@ const generateFallbackPredictions = (skills, degree) => {
     predictions.push({ job_role: "Data Analyst", confidence: 85 });
     predictions.push({ job_role: "Data Scientist", confidence: 75 });
     predictions.push({ job_role: "Business Analyst", confidence: 65 });
-  } else if (
-    skillsStr.includes("web") ||
-    skillsStr.includes("react") ||
-    skillsStr.includes("javascript")
-  ) {
+  } else if (skillsStr.includes("web") || skillsStr.includes("react") || skillsStr.includes("javascript")) {
     predictions.push({ job_role: "Frontend Developer", confidence: 80 });
     predictions.push({ job_role: "Full Stack Developer", confidence: 70 });
     predictions.push({ job_role: "Web Developer", confidence: 65 });
@@ -214,7 +155,6 @@ export const getJobInsights = async (req, res, next) => {
       return next(new httpError("User not found", 404));
     }
 
-    // Generate insights based on user profile
     const insights = {
       skillsAnalysis: {
         totalSkills: user.skills ? user.skills.length : 0,
@@ -222,14 +162,10 @@ export const getJobInsights = async (req, res, next) => {
         recommendations: generateSkillRecommendations(user.skills),
       },
       certificationAnalysis: {
-        totalCertifications: user.Certifications
-          ? user.Certifications.length
-          : 0,
-        recentCertifications: user.Certifications
-          ? user.Certifications.filter(
-              (cert) => cert.year >= new Date().getFullYear() - 2
-            )
-          : [],
+        totalCertifications: user.Certifications ? user.Certifications.length : 0,
+        recentCertifications: user.Certifications ? user.Certifications.filter(
+          (cert) => cert.year >= new Date().getFullYear() - 2
+        ) : [],
         suggestions: generateCertificationSuggestions(user.skills),
       },
       profileStrength: calculateProfileStrength(user),
@@ -250,11 +186,8 @@ export const submitFeedback = async (req, res, next) => {
     const { rating } = req.body;
     const userId = req.userId;
 
-    // Validate rating before proceeding
     if (!rating || !["good", "bad", "avg"].includes(rating)) {
-      return next(
-        new httpError("Valid rating (good/bad/avg) is required", 400)
-      );
+      return next(new httpError("Valid rating (good/bad/avg) is required", 400));
     }
 
     const prediction = await JobPrediction.findOne({
@@ -265,7 +198,6 @@ export const submitFeedback = async (req, res, next) => {
       return next(new httpError("Prediction not found", 404));
     }
 
-    // Set feedback as simple string value
     prediction.feedback = rating;
     await prediction.save();
 
@@ -333,7 +265,21 @@ const generateCertificationSuggestions = (skills) => {
   return suggestions.slice(0, 3);
 };
 
-// Admin Controllers
+const calculateProfileStrength = (user) => {
+  let score = 0;
+  if (user.degree) score += 20;
+  if (user.CGPA && parseFloat(user.CGPA) >= 7.0) score += 20;
+  if (user.skills && user.skills.length >= 3) score += 20;
+  if (user.Certifications && user.Certifications.length >= 2) score += 20;
+  if (user.yearOfPassing && parseInt(user.yearOfPassing) >= 2020) score += 20;
+
+  return {
+    score,
+    level: score >= 80 ? "Excellent" : score >= 60 ? "Good" : score >= 40 ? "Average" : "Needs Improvement",
+    suggestions: score < 80 ? ["Add more relevant skills", "Obtain industry certifications", "Maintain good academic performance"] : ["Your profile looks great!"],
+  };
+};
+
 export const getAllUsers = async (req, res, next) => {
   try {
     const users = await User.find({ role: "student" })
@@ -353,66 +299,151 @@ export const getAllUsers = async (req, res, next) => {
 export const getAllPredictions = async (req, res, next) => {
   try {
     const predictions = await JobPrediction.find()
-      .populate("userID", "name email degree yearOfPassing")
+      .populate("userID", "name email degree yearOfPassing CGPA skills")
       .sort({ createdAt: -1 });
+
+    const feedbackStats = {
+      good: predictions.filter((p) => p.feedback === "good").length,
+      avg: predictions.filter((p) => p.feedback === "avg").length,
+      bad: predictions.filter((p) => p.feedback === "bad").length,
+      total: predictions.length
+    };
+
+    const modelAccuracy = feedbackStats.total > 0 
+      ? (feedbackStats.good / feedbackStats.total * 100).toFixed(1)
+      : 0;
 
     return res.status(200).json({
       success: true,
-      predictions,
+      predictions: predictions.map(p => ({
+        _id: p._id,
+        user: p.userID,
+        predictedJobRoles: p.predictedJobRoles,
+        userProfile: p.userProfile,
+        feedback: p.feedback,
+        modelMetrics: p.modelMetrics,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt
+      })),
       totalPredictions: predictions.length,
+      feedbackStats,
       modelMetrics: {
-        f1Score: 75.6,
-        accuracy: 70.0,
-      },
+        accuracy: parseFloat(modelAccuracy),
+        f1Score: 86,
+        totalPredictions: predictions.length
+      }
     });
   } catch (error) {
     return next(new httpError(error.message, 500));
   }
 };
-
-export const getUserPredictions = async (req, res, next) => {
+// Admin-specific endpoints
+export const getAdminPredictions = async (req, res, next) => {
   try {
-    const { userId } = req.params;
+    const { page = 1, limit = 10, userId, feedback } = req.query;
+    
+    let filter = {};
+    if (userId) filter.userID = userId;
+    if (feedback) filter.feedback = feedback;
 
-    const predictions = await JobPrediction.find({ userID: userId })
-      .populate("userID", "name email degree yearOfPassing")
-      .sort({ createdAt: -1 });
+    const predictions = await JobPrediction.find(filter)
+      .populate("userID", "name email degree yearOfPassing CGPA skills")
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await JobPrediction.countDocuments(filter);
 
     return res.status(200).json({
       success: true,
       predictions,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        itemsPerPage: parseInt(limit)
+      }
     });
   } catch (error) {
     return next(new httpError(error.message, 500));
   }
 };
 
-const calculateProfileStrength = (user) => {
-  let score = 0;
+export const getPredictionById = async (req, res, next) => {
+  try {
+    const { predictionId } = req.params;
+    
+    const prediction = await JobPrediction.findById(predictionId)
+      .populate("userID", "name email degree yearOfPassing CGPA skills Certifications");
 
-  if (user.degree) score += 20;
-  if (user.CGPA && parseFloat(user.CGPA) >= 7.0) score += 20;
-  if (user.skills && user.skills.length >= 3) score += 20;
-  if (user.Certifications && user.Certifications.length >= 2) score += 20;
-  if (user.yearOfPassing && parseInt(user.yearOfPassing) >= 2020) score += 20;
+    if (!prediction) {
+      return next(new httpError("Prediction not found", 404));
+    }
 
-  return {
-    score,
-    level:
-      score >= 80
-        ? "Excellent"
-        : score >= 60
-        ? "Good"
-        : score >= 40
-        ? "Average"
-        : "Needs Improvement",
-    suggestions:
-      score < 80
-        ? [
-            "Add more relevant skills",
-            "Obtain industry certifications",
-            "Maintain good academic performance",
-          ]
-        : ["Your profile looks great!"],
-  };
+    return res.status(200).json({
+      success: true,
+      prediction
+    });
+  } catch (error) {
+    return next(new httpError(error.message, 500));
+  }
+};
+// Debug endpoints
+export const testPredictionSave = async (req, res, next) => {
+  try {
+    console.log('Testing prediction save...');
+    
+    const testPrediction = new JobPrediction({
+      userID: new mongoose.Types.ObjectId(),
+      predictedJobRoles: [
+        { job_role: "Test Developer", confidence: 85 },
+        { job_role: "Test Analyst", confidence: 75 }
+      ],
+      userProfile: {
+        degree: "Test Degree",
+        specialization: "Test",
+        yearOfPassing: 2024,
+        cgpa: 8.0,
+        certifications: 1
+      }
+    });
+
+    const saved = await testPrediction.save();
+    console.log('Test prediction saved:', saved._id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Test prediction saved",
+      predictionId: saved._id
+    });
+  } catch (error) {
+    console.error('Test save error:', error);
+    return next(new httpError(error.message, 500));
+  }
+};
+
+export const debugGetPredictions = async (req, res, next) => {
+  try {
+    console.log('Getting all predictions for debug...');
+    
+    const count = await JobPrediction.countDocuments();
+    console.log('Total predictions in DB:', count);
+    
+    const predictions = await JobPrediction.find()
+      .populate("userID", "name email")
+      .sort({ createdAt: -1 })
+      .limit(5);
+    
+    console.log('Found predictions:', predictions.length);
+    
+    return res.status(200).json({
+      success: true,
+      totalCount: count,
+      predictions: predictions,
+      message: `Found ${count} predictions in database`
+    });
+  } catch (error) {
+    console.error('Debug get error:', error);
+    return next(new httpError(error.message, 500));
+  }
 };

@@ -20,6 +20,11 @@ const jobPredictionSchema = new mongoose.Schema(
       cgpa: Number,
       certifications: Number,
     },
+    feedback: {
+      type: String,
+      enum: ["good", "bad", "avg"],
+      default: null
+    },
     modelMetrics: {
       f1Score: { type: Number, default: 86 },
       accuracy: { type: Number, default: 70.0 },
