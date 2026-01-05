@@ -6,6 +6,7 @@ import RegisterPage from "../Pages/RegisterPage";
 import LogInPage from "../Pages/LogInPage";
 import VerificationPage from "../Pages/VerificationPage";
 import Profile from "../Pages/Profile";
+import AdminPage from "../Pages/AdminPage";
 import Layout from "../Modals/Layout";
 import ProtectedRoute from "../Components/ProtectedRoute";
 import { useAuth } from "../Hooks/Context/AuthContext";
@@ -30,6 +31,7 @@ const AppRoutes = () => {
         >
           <Route index element={<Dashboard />} />
           <Route path={Pages.PROFILE} element={<Profile />} />
+          <Route path="/admin" element={<AdminPage />} />
         </Route>
 
         {/* Authentication Routes */}

@@ -6,6 +6,7 @@ import userRoutes from "./src/routes/user.routes.js";
 import authRoutes from "./src/routes/auth.routes.js";
 import googleAuthRoutes from "./src/routes/auth.routes.js";
 import predictionRoutes from "./src/routes/prediction.routes.js";
+import adminRoutes from "./src/routes/admin.routes.js";
 import passport from "passport";
 import "./src/configs/passport.js";
 import "dotenv/config";
@@ -31,6 +32,13 @@ app.use("/api/auth", (req, res) => {
 app.use("/users", userRoutes);
 app.use("/auth", googleAuthRoutes);
 app.use("/api/prediction", predictionRoutes);
+app.use("/api/admin", adminRoutes);
+
+// Test endpoint
+app.get("/test", (req, res) => {
+  res.json({ success: true, message: "Server is working!" });
+});
+
 // http://localhost:8000/users
 
 // Out of above Route Handling

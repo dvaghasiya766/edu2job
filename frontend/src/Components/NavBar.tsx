@@ -20,6 +20,7 @@ import {
   Dashboard,
   Logout,
   Settings,
+  AdminPanelSettings,
 } from "@mui/icons-material";
 import { CircularProgress } from "@mui/material";
 import React, { useState } from "react";
@@ -32,13 +33,6 @@ import { useAuth } from "../Hooks/Context/AuthContext";
 interface NavBarProps {
   userName?: string;
 }
-
-const settings = [
-  { label: "Dashboard", path: Pages.DASHBOARD, icon: <Dashboard /> },
-  { label: "Profile", path: Pages.PROFILE, icon: <Person /> },
-  { label: "Settings", path: "/settings", icon: <Settings /> },
-  { label: "Logout", path: Pages.LOGOUT, icon: <Logout /> },
-];
 
 export const stringToColor = (string: string) => {
   let hash = 0;
@@ -82,6 +76,14 @@ const NavBar = ({ userName: propUserName }: NavBarProps) => {
   const [logoutLoading, setLogoutLoading] = useState(false);
   
   const userName = propUserName || user?.name || "User";
+
+  const settings = [
+    { label: "Dashboard", path: Pages.DASHBOARD, icon: <Dashboard /> },
+    { label: "Profile", path: Pages.PROFILE, icon: <Person /> },
+    ...(user?.role === 'admin' ? [{ label: "Admin Panel", path: "/admin", icon: <AdminPanelSettings /> }] : []),
+    { label: "Settings", path: "/settings", icon: <Settings /> },
+    { label: "Logout", path: Pages.LOGOUT, icon: <Logout /> },
+  ];
 
   const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);

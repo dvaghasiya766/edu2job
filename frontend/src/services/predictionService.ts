@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem('accessToken');
@@ -10,7 +10,7 @@ const getAuthHeaders = () => {
 
 export const predictionService = {
   async predictJobRole() {
-    const response = await fetch(`${API_BASE_URL}/prediction/predict-job`, {
+    const response = await fetch(`${API_BASE_URL}/api/prediction/predict-job`, {
       method: 'POST',
       headers: getAuthHeaders()
     });
@@ -24,13 +24,26 @@ export const predictionService = {
   },
 
   async getJobInsights() {
-    const response = await fetch(`${API_BASE_URL}/prediction/insights`, {
+    const response = await fetch(`${API_BASE_URL}/api/prediction/insights`, {
       headers: getAuthHeaders()
     });
     
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.message || 'Failed to fetch job insights');
+    }
+    
+    return response.json();
+  },
+
+  async getPredictionHistory() {
+    const response = await fetch(`${API_BASE_URL}/api/prediction/history`, {
+      headers: getAuthHeaders()
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to fetch prediction history');
     }
     
     return response.json();

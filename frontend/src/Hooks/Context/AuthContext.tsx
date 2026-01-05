@@ -17,6 +17,7 @@ interface User {
   Certifications?: any[];
   isVerified: boolean;
   status: string;
+  role?: string;
 }
 
 interface AuthContextType {
