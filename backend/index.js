@@ -24,13 +24,9 @@ app.use(
   })
 );
 
-// Custome APIs
-app.use("/api/auth", (req, res) => {
-  res.status(200).json({ success: true, message: "Connection is Good!" });
-});
-
+// Custom APIs
 app.use("/users", userRoutes);
-app.use("/auth", googleAuthRoutes);
+app.use("/auth", authRoutes);
 app.use("/api/prediction", predictionRoutes);
 app.use("/api/admin", adminRoutes);
 

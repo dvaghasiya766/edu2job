@@ -4,7 +4,6 @@ import {
   Card,
   CardContent,
   Typography,
-  Grid,
   Table,
   TableBody,
   TableCell,
@@ -13,27 +12,14 @@ import {
   TableRow,
   Paper,
   Chip,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Alert,
   CircularProgress,
   Tabs,
-  Tab
+  Tab,
+  Grid,
+  LinearProgress
 } from '@mui/material';
 import { adminService } from '../services/adminService';
-
-interface DashboardStats {
-  totalUsers: number;
-  totalPredictions: number;
-  modelMetrics: {
-    f1Score: number;
-    accuracy: number;
-    datasetRows: number;
-  };
-}
 
 interface User {
   _id: string;
@@ -45,7 +31,6 @@ interface User {
   skills: string[];
   Certifications: any[];
   status: string;
-  isVerified: boolean;
   createdAt: string;
 }
 
@@ -54,43 +39,37 @@ interface Prediction {
   userID: {
     name: string;
     email: string;
-    degree: string;
   };
   predictedJobRoles: Array<{
     job_role: string;
     confidence: number;
   }>;
-  modelMetrics: {
-    f1Score: number;
-    accuracy: number;
+  feedback?: {
+    rating: string;
+    submittedAt: string;
   };
   createdAt: string;
 }
 
 const AdminDashboard: React.FC = () => {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [userDetailsOpen, setUserDetailsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tabValue, setTabValue] = useState(0);
 
   useEffect(() => {
-    fetchDashboardData();
+    fetchData();
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const [statsData, usersData, predictionsData] = await Promise.all([
-        adminService.getDashboardStats(),
+      const [usersData, predictionsData] = await Promise.all([
         adminService.getAllUsers(),
         adminService.getAllPredictions()
       ]);
       
-      setStats(statsData.stats);
       setUsers(usersData.users);
       setPredictions(predictionsData.predictions);
     } catch (err: any) {
@@ -100,19 +79,26 @@ const AdminDashboard: React.FC = () => {
     }
   };
 
-  const handleUserClick = async (userId: string) => {
-    try {
-      const userDetails = await adminService.getUserDetails(userId);
-      setSelectedUser(userDetails);
-      setUserDetailsOpen(true);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString();
   };
+
+  const getFeedbackColor = (rating: string) => {
+    switch (rating) {
+      case 'good': return 'success';
+      case 'bad': return 'error';
+      case 'avg': return 'warning';
+      default: return 'default';
+    }
+  };
+
+  // Calculate statistics
+  const activeUsers = users.filter(u => u.status === 'active').length;
+  const inactiveUsers = users.filter(u => u.status === 'inactive').length;
+  const goodFeedback = predictions.filter(p => p.feedback?.rating === 'good').length;
+  const avgFeedback = predictions.filter(p => p.feedback?.rating === 'avg').length;
+  const badFeedback = predictions.filter(p => p.feedback?.rating === 'bad').length;
+  const noFeedback = predictions.filter(p => !p.feedback).length;
 
   if (loading) {
     return (
@@ -136,68 +122,114 @@ const AdminDashboard: React.FC = () => {
         Admin Dashboard
       </Typography>
 
-      {/* Stats Cards */}
-      {stats && (
-        <Grid container spacing={3} sx={{ mb: 4 }}>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  Total Users
-                </Typography>
-                <Typography variant="h4">
-                  {stats.totalUsers}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  Total Predictions
-                </Typography>
-                <Typography variant="h4">
-                  {stats.totalPredictions}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-            <Card>
-              <CardContent>
-                <Typography color="textSecondary" gutterBottom>
-                  Model Performance
-                </Typography>
-                <Typography variant="h6">
-                  F1: {stats.modelMetrics.f1Score}%
-                </Typography>
-                <Typography variant="h6">
-                  Acc: {stats.modelMetrics.accuracy}%
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Dataset: {stats.modelMetrics.datasetRows} rows
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
+      {/* Statistics Cards */}
+      <Grid container spacing={3} sx={{ mb: 4 }}>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                User Status ({users.length} total)
+              </Typography>
+              <Box sx={{ mb: 2 }}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Active</Typography>
+                  <Typography variant="body2">{activeUsers}</Typography>
+                </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={users.length ? (activeUsers / users.length) * 100 : 0} 
+                  color="success"
+                  sx={{ mb: 1 }}
+                />
+              </Box>
+              <Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Inactive</Typography>
+                  <Typography variant="body2">{inactiveUsers}</Typography>
+                </Box>
+                <LinearProgress 
+                  variant="determinate" 
+                  value={users.length ? (inactiveUsers / users.length) * 100 : 0} 
+                  color="warning"
+                />
+              </Box>
+            </CardContent>
+          </Card>
         </Grid>
-      )}
+        
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Feedback Summary ({predictions.length} total)
+              </Typography>
+              <Box sx={{ mb: 1 }}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Good</Typography>
+                  <Typography variant="body2">{goodFeedback}</Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={predictions.length ? (goodFeedback / predictions.length) * 100 : 0} color="success" sx={{ mb: 1 }} />
+              </Box>
+              <Box sx={{ mb: 1 }}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Average</Typography>
+                  <Typography variant="body2">{avgFeedback}</Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={predictions.length ? (avgFeedback / predictions.length) * 100 : 0} color="warning" sx={{ mb: 1 }} />
+              </Box>
+              <Box sx={{ mb: 1 }}>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">Bad</Typography>
+                  <Typography variant="body2">{badFeedback}</Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={predictions.length ? (badFeedback / predictions.length) * 100 : 0} color="error" sx={{ mb: 1 }} />
+              </Box>
+              <Box>
+                <Box display="flex" justifyContent="space-between">
+                  <Typography variant="body2">No Feedback</Typography>
+                  <Typography variant="body2">{noFeedback}</Typography>
+                </Box>
+                <LinearProgress variant="determinate" value={predictions.length ? (noFeedback / predictions.length) * 100 : 0} color="inherit" />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Model Performance
+              </Typography>
+              <Box sx={{ textAlign: 'center' }}>
+                <Typography variant="h3" color="primary">
+                  86%
+                </Typography>
+                <Typography variant="body2" gutterBottom>
+                  F1 Score
+                </Typography>
+                <Typography variant="h3" color="secondary">
+                  70%
+                </Typography>
+                <Typography variant="body2">
+                  Accuracy
+                </Typography>
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
 
-      {/* Tabs */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
-        <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)}>
-          <Tab label="Users" />
-          <Tab label="Predictions" />
-        </Tabs>
-      </Box>
+      <Tabs value={tabValue} onChange={(e, newValue) => setTabValue(newValue)} sx={{ mb: 3 }}>
+        <Tab label="Users" />
+        <Tab label="Predictions" />
+      </Tabs>
 
-      {/* Users Tab */}
       {tabValue === 0 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              User Management
+              User Management ({users.length})
             </Typography>
             <TableContainer component={Paper}>
               <Table>
@@ -209,10 +241,8 @@ const AdminDashboard: React.FC = () => {
                     <TableCell>Year</TableCell>
                     <TableCell>CGPA</TableCell>
                     <TableCell>Skills</TableCell>
-                    <TableCell>Certifications</TableCell>
                     <TableCell>Status</TableCell>
                     <TableCell>Joined</TableCell>
-                    <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -238,9 +268,6 @@ const AdminDashboard: React.FC = () => {
                         ) : 'N/A'}
                       </TableCell>
                       <TableCell>
-                        {user.Certifications && user.Certifications.length > 0 ? user.Certifications.length : 0}
-                      </TableCell>
-                      <TableCell>
                         <Chip
                           label={user.status}
                           color={user.status === 'active' ? 'success' : 'default'}
@@ -248,14 +275,6 @@ const AdminDashboard: React.FC = () => {
                         />
                       </TableCell>
                       <TableCell>{formatDate(user.createdAt)}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="small"
-                          onClick={() => handleUserClick(user._id)}
-                        >
-                          View Details
-                        </Button>
-                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -265,12 +284,11 @@ const AdminDashboard: React.FC = () => {
         </Card>
       )}
 
-      {/* Predictions Tab */}
       {tabValue === 1 && (
         <Card>
           <CardContent>
             <Typography variant="h6" gutterBottom>
-              Prediction History
+              Prediction History ({predictions.length})
             </Typography>
             <TableContainer component={Paper}>
               <Table>
@@ -279,8 +297,7 @@ const AdminDashboard: React.FC = () => {
                     <TableCell>User</TableCell>
                     <TableCell>Email</TableCell>
                     <TableCell>Predicted Roles</TableCell>
-                    <TableCell>F1 Score</TableCell>
-                    <TableCell>Accuracy</TableCell>
+                    <TableCell>Feedback</TableCell>
                     <TableCell>Date</TableCell>
                   </TableRow>
                 </TableHead>
@@ -299,8 +316,19 @@ const AdminDashboard: React.FC = () => {
                           />
                         ))}
                       </TableCell>
-                      <TableCell>{prediction.modelMetrics?.f1Score || 86}%</TableCell>
-                      <TableCell>{prediction.modelMetrics?.accuracy || 70}%</TableCell>
+                      <TableCell>
+                        {prediction.feedback ? (
+                          <Chip
+                            label={prediction.feedback.rating}
+                            color={getFeedbackColor(prediction.feedback.rating)}
+                            size="small"
+                          />
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            No feedback
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell>{formatDate(prediction.createdAt)}</TableCell>
                     </TableRow>
                   ))}
@@ -310,63 +338,6 @@ const AdminDashboard: React.FC = () => {
           </CardContent>
         </Card>
       )}
-
-      {/* User Details Dialog */}
-      <Dialog
-        open={userDetailsOpen}
-        onClose={() => setUserDetailsOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>User Details</DialogTitle>
-        <DialogContent>
-          {selectedUser && (
-            <Box>
-              <Typography variant="h6" gutterBottom>
-                {selectedUser.user.name}
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                Email: {selectedUser.user.email}
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                Degree: {selectedUser.user.degree}
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                CGPA: {selectedUser.user.CGPA}
-              </Typography>
-              <Typography variant="body2" gutterBottom>
-                Skills: {selectedUser.user.skills?.join(', ') || 'None'}
-              </Typography>
-              
-              <Typography variant="h6" sx={{ mt: 2, mb: 1 }}>
-                Prediction History ({selectedUser.totalPredictions})
-              </Typography>
-              {selectedUser.predictions.map((pred: any, index: number) => (
-                <Card key={index} sx={{ mb: 1 }}>
-                  <CardContent>
-                    <Typography variant="body2">
-                      Date: {formatDate(pred.createdAt)}
-                    </Typography>
-                    <Box sx={{ mt: 1 }}>
-                      {pred.predictedJobRoles.map((role: any, roleIndex: number) => (
-                        <Chip
-                          key={roleIndex}
-                          label={`${role.job_role} (${role.confidence}%)`}
-                          size="small"
-                          sx={{ mr: 0.5 }}
-                        />
-                      ))}
-                    </Box>
-                  </CardContent>
-                </Card>
-              ))}
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUserDetailsOpen(false)}>Close</Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };

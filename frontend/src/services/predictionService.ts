@@ -47,5 +47,20 @@ export const predictionService = {
     }
     
     return response.json();
+  },
+
+  async submitFeedback(predictionId: string, rating: 'good' | 'bad' | 'avg') {
+    const response = await fetch(`${API_BASE_URL}/api/prediction/feedback/${predictionId}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ rating })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to submit feedback');
+    }
+    
+    return response.json();
   }
 };

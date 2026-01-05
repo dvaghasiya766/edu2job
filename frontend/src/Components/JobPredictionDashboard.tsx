@@ -56,6 +56,10 @@ interface PredictionHistory {
   _id: string;
   predictedJobRoles: JobPrediction[];
   modelMetrics: ModelMetrics;
+  feedback?: {
+    rating: string;
+    submittedAt: string;
+  };
   createdAt: string;
 }
 
@@ -68,6 +72,9 @@ const JobPredictionDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  const [currentPredictionId, setCurrentPredictionId] = useState<string | null>(null);
+  const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
+
   const handlePredictJob = async () => {
     setLoading(true);
     setError(null);
@@ -77,11 +84,33 @@ const JobPredictionDashboard: React.FC = () => {
       setPredictions(result.predictions);
       setUserProfile(result.userProfile);
       setModelMetrics(result.modelMetrics);
+      setCurrentPredictionId(result.predictionId || null);
+      setFeedbackSubmitted(false);
       fetchPredictionHistory(); // Refresh history after new prediction
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleFeedback = async (rating: 'good' | 'bad' | 'avg') => {
+    if (!currentPredictionId) return;
+    
+    try {
+      await predictionService.submitFeedback(currentPredictionId, rating);
+      setFeedbackSubmitted(true);
+    } catch (err: any) {
+      console.error('Failed to submit feedback:', err.message);
+    }
+  };
+
+  const handleIndividualFeedback = async (predictionId: string, rating: 'good' | 'bad' | 'avg') => {
+    try {
+      await predictionService.submitFeedback(predictionId, rating);
+      fetchPredictionHistory(); // Refresh to show updated feedback
+    } catch (err: any) {
+      console.error('Failed to submit feedback:', err.message);
     }
   };
 
@@ -192,6 +221,45 @@ const JobPredictionDashboard: React.FC = () => {
                       />
                     </Box>
                   ))}
+                  
+                  {/* Feedback Section */}
+                  <Box sx={{ mt: 3, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      How accurate were these predictions?
+                    </Typography>
+                    {feedbackSubmitted ? (
+                      <Typography variant="body2" color="success.main">
+                        Thank you for your feedback!
+                      </Typography>
+                    ) : (
+                      <Box display="flex" gap={1}>
+                        <Button
+                          variant="contained"
+                          color="success"
+                          size="small"
+                          onClick={() => handleFeedback('good')}
+                        >
+                          Good
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="warning"
+                          size="small"
+                          onClick={() => handleFeedback('avg')}
+                        >
+                          Average
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          size="small"
+                          onClick={() => handleFeedback('bad')}
+                        >
+                          Bad
+                        </Button>
+                      </Box>
+                    )}
+                  </Box>
                 </Box>
               )}
 
@@ -229,8 +297,7 @@ const JobPredictionDashboard: React.FC = () => {
                       <TableRow>
                         <TableCell>Date</TableCell>
                         <TableCell>Predicted Roles</TableCell>
-                        <TableCell>F1 Score</TableCell>
-                        <TableCell>Accuracy</TableCell>
+                        <TableCell>Feedback</TableCell>
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -247,8 +314,60 @@ const JobPredictionDashboard: React.FC = () => {
                               />
                             ))}
                           </TableCell>
-                          <TableCell>{history.modelMetrics?.f1Score || 86}%</TableCell>
-                          <TableCell>{history.modelMetrics?.accuracy || 70}%</TableCell>
+                          <TableCell>
+                            {history.feedback ? (
+                              <Box display="flex" gap={0.5}>
+                                <Button
+                                  size="small"
+                                  variant={history.feedback.rating === 'good' ? 'contained' : 'outlined'}
+                                  color="success"
+                                  disabled
+                                >
+                                  Good
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant={history.feedback.rating === 'avg' ? 'contained' : 'outlined'}
+                                  color="warning"
+                                  disabled
+                                >
+                                  Avg
+                                </Button>
+                                <Button
+                                  size="small"
+                                  variant={history.feedback.rating === 'bad' ? 'contained' : 'outlined'}
+                                  color="error"
+                                  disabled
+                                >
+                                  Bad
+                                </Button>
+                              </Box>
+                            ) : (
+                              <Box display="flex" gap={0.5}>
+                                <Button
+                                  size="small"
+                                  color="success"
+                                  onClick={() => handleIndividualFeedback(history._id, 'good')}
+                                >
+                                  Good
+                                </Button>
+                                <Button
+                                  size="small"
+                                  color="warning"
+                                  onClick={() => handleIndividualFeedback(history._id, 'avg')}
+                                >
+                                  Avg
+                                </Button>
+                                <Button
+                                  size="small"
+                                  color="error"
+                                  onClick={() => handleIndividualFeedback(history._id, 'bad')}
+                                >
+                                  Bad
+                                </Button>
+                              </Box>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

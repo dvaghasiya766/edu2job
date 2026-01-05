@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
-import uniqueValidator from "mongoose-unique-validator";
 
-const predictionSchema = new mongoose.Schema(
+const jobPredictionSchema = new mongoose.Schema(
   {
     userID: {
       type: mongoose.Schema.Types.ObjectId,
@@ -26,17 +25,7 @@ const predictionSchema = new mongoose.Schema(
       accuracy: { type: Number, default: 70.0 },
     },
   },
-  { timestamps: true, strict: false }
+  { timestamps: true }
 );
 
-// Remove any feedback field before saving
-predictionSchema.pre('save', function(next) {
-  if (this.feedback) {
-    delete this.feedback;
-  }
-  next();
-});
-
-predictionSchema.plugin(uniqueValidator);
-
-export const Prediction = mongoose.model("PredictionV2", predictionSchema);
+export const JobPrediction = mongoose.model("JobPrediction", jobPredictionSchema);
